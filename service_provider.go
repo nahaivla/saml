@@ -650,22 +650,28 @@ func (sp *ServiceProvider) validateAssertion(assertion *Assertion, possibleReque
 	if assertion.Issuer.Value != sp.IDPMetadata.EntityID {
 		return fmt.Errorf("issuer is not %q", sp.IDPMetadata.EntityID)
 	}
-	for _, subjectConfirmation := range assertion.Subject.SubjectConfirmations {
-		requestIDvalid := false
-		for _, possibleRequestID := range possibleRequestIDs {
-			if subjectConfirmation.SubjectConfirmationData.InResponseTo == possibleRequestID {
-				requestIDvalid = true
-				break
+
+	requestIDvalid := false
+	if sp.AllowIDPInitiated {
+		requestIDvalid = true
+	} else {
+		for _, subjectConfirmation := range assertion.Subject.SubjectConfirmations {
+			for _, possibleRequestID := range possibleRequestIDs {
+				if subjectConfirmation.SubjectConfirmationData.InResponseTo == possibleRequestID {
+					requestIDvalid = true
+					break
+				}
 			}
-		}
-		if !requestIDvalid {
-			return fmt.Errorf("assertion SubjectConfirmation one of the possible request IDs (%v)", possibleRequestIDs)
-		}
-		if subjectConfirmation.SubjectConfirmationData.Recipient != sp.AcsURL.String() {
-			return fmt.Errorf("assertion SubjectConfirmation Recipient is not %s", sp.AcsURL.String())
-		}
-		if subjectConfirmation.SubjectConfirmationData.NotOnOrAfter.Add(MaxClockSkew).Before(now) {
-			return fmt.Errorf("assertion SubjectConfirmationData is expired")
+
+			if !requestIDvalid {
+				return fmt.Errorf("assertion SubjectConfirmation one of the possible request IDs (%v)", possibleRequestIDs)
+			}
+			if subjectConfirmation.SubjectConfirmationData.Recipient != sp.AcsURL.String() {
+				return fmt.Errorf("assertion SubjectConfirmation Recipient is not %s", sp.AcsURL.String())
+			}
+			if subjectConfirmation.SubjectConfirmationData.NotOnOrAfter.Add(MaxClockSkew).Before(now) {
+				return fmt.Errorf("assertion SubjectConfirmationData is expired")
+			}
 		}
 	}
 	if assertion.Conditions.NotBefore.Add(-MaxClockSkew).After(now) {
